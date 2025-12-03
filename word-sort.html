@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Sort Activity</title>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Quicksand', sans-serif;
+        }
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // Lucide React icons as inline SVG components
+        const Shuffle = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+            </svg>
+        );
+
+        const ChevronRight = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+        );
+
+        const RotateCcw = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+            </svg>
+        );
+
+        const Check = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        );
+
+        const X = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        );
+
+        function WordSortActivity() {
+            const [phase, setPhase] = useState('setup');
+            const [isModeling, setIsModeling] = useState(true);
+            const [targetPattern, setTargetPattern] = useState('');
+            const [distractorPattern, setDistractorPattern] = useState('');
+            const [targetWords, setTargetWords] = useState(['', '', '', '', '', '', '', '', '', '']);
+            const [distractorWords, setDistractorWords] = useState(['', '', '', '', '', '', '', '', '', '']);
+            
+            const [shuffledCards, setShuffledCards] = useState([]);
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [results, setResults] = useState([]);
+            const [showFeedback, setShowFeedback] = useState(false);
+            const [feedbackCorrect, setFeedbackCorrect] = useState(false);
+
+            const startActivity = () => {
+                const targetCards = targetWords.filter(w => w.trim()).map(w => ({ word: w, type: 'target' }));
+                const distractorCards = distractorWords.filter(w => w.trim()).map(w => ({ word: w, type: 'distractor' }));
+                
+                const shuffled = [];
+                const targetPool = [...targetCards];
+                const distractorPool = [...distractorCards];
+                
+                for (let i = targetPool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [targetPool[i], targetPool[j]] = [targetPool[j], targetPool[i]];
+                }
+                for (let i = distractorPool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [distractorPool[i], distractorPool[j]] = [distractorPool[j], distractorPool[i]];
+                }
+                
+                let lastType = null;
+                let sameTypeCount = 0;
+                
+                while (targetPool.length > 0 || distractorPool.length > 0) {
+                    let useTarget;
+                    
+                    if (sameTypeCount >= 2) {
+                        useTarget = lastType !== 'target';
+                    } 
+                    else if (targetPool.length === 0) {
+                        useTarget = false;
+                    } else if (distractorPool.length === 0) {
+                        useTarget = true;
+                    }
+                    else {
+                        const alternateBonus = lastType === 'target' ? 0.6 : 0.4;
+                        useTarget = Math.random() < alternateBonus;
+                    }
+                    
+                    if (useTarget && targetPool.length > 0) {
+                        shuffled.push(targetPool.shift());
+                        if (lastType === 'target') {
+                            sameTypeCount++;
+                        } else {
+                            sameTypeCount = 1;
+                            lastType = 'target';
+                        }
+                    } else if (distractorPool.length > 0) {
+                        shuffled.push(distractorPool.shift());
+                        if (lastType === 'distractor') {
+                            sameTypeCount++;
+                        } else {
+                            sameTypeCount = 1;
+                            lastType = 'distractor';
+                        }
+                    }
+                }
+                
+                setShuffledCards(shuffled);
+                setCurrentIndex(0);
+                setResults([]);
+                setIsModeling(true);
+                setPhase('activity');
+            };
+
+            const handleSort = (selectedType) => {
+                const currentCard = shuffledCards[currentIndex];
+                const correct = currentCard.type === selectedType;
+                
+                setFeedbackCorrect(correct);
+                setShowFeedback(true);
+                setResults([...results, { word: currentCard.word, correct, type: currentCard.type }]);
+                
+                setTimeout(() => {
+                    setShowFeedback(false);
+                    if (correct && currentCard.type === 'target') {
+                        setPhase('reading');
+                    } else {
+                        moveToNext();
+                    }
+                }, 1200);
+            };
+
+            const moveToNext = () => {
+                if (currentIndex < shuffledCards.length - 1) {
+                    setCurrentIndex(currentIndex + 1);
+                    setPhase('activity');
+                    if (currentIndex === 2) {
+                        setIsModeling(false);
+                    }
+                } else {
+                    setPhase('summary');
+                }
+            };
+
+            const resetActivity = () => {
+                setPhase('setup');
+                setTargetPattern('');
+                setDistractorPattern('');
+                setTargetWords(['', '', '', '', '', '', '', '', '', '']);
+                setDistractorWords(['', '', '', '', '', '', '', '', '', '']);
+                setIsModeling(true);
+            };
+
+            const updateTargetWord = (index, value) => {
+                const newWords = [...targetWords];
+                newWords[index] = value;
+                setTargetWords(newWords);
+            };
+
+            const updateDistractorWord = (index, value) => {
+                const newWords = [...distractorWords];
+                newWords[index] = value;
+                setDistractorWords(newWords);
+            };
+
+            const canStart = targetPattern.trim() && distractorPattern.trim() && 
+                           targetWords.filter(w => w.trim()).length >= 5 && 
+                           distractorWords.filter(w => w.trim()).length >= 5;
+
+            return (
+                <div style={{
+                    minHeight: '100vh',
+                    background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                    fontFamily: '"Quicksand", "Nunito", sans-serif',
+                    padding: '2rem'
+                }}>
+                    {phase === 'setup' && (
+                        <div style={{
+                            maxWidth: '800px',
+                            margin: '0 auto',
+                            animation: 'fadeIn 0.6s ease-out'
+                        }}>
+                            <div style={{
+                                background: 'white',
+                                borderRadius: '24px',
+                                padding: '3rem',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.15)'
+                            }}>
+                                <h1 style={{
+                                    fontFamily: '"Fredoka", cursive',
+                                    fontSize: '2.5rem',
+                                    color: '#ff6b6b',
+                                    marginBottom: '0.5rem',
+                                    textAlign: 'center'
+                                }}>
+                                    📚 Word Sort Setup
+                                </h1>
+                                <p style={{
+                                    textAlign: 'center',
+                                    color: '#666',
+                                    marginBottom: '2rem',
+                                    fontSize: '1.1rem'
+                                }}>
+                                    Create a phonetic pattern activity for your student<br />
+                                    <span style={{ fontSize: '0.95rem', color: '#999' }}>
+                                        (Teacher models first 3 cards, student completes remaining 7)
+                                    </span>
+                                </p>
+
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontWeight: '600',
+                                        color: '#333',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '1.1rem'
+                                    }}>
+                                        🎯 Target Pattern (What you're teaching)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={targetPattern}
+                                        onChange={(e) => setTargetPattern(e.target.value)}
+                                        placeholder="e.g., Long vowel sound with silent 'e'"
+                                        style={{
+                                            width: '100%',
+                                            padding: '1rem',
+                                            fontSize: '1rem',
+                                            border: '3px solid #ffe0b2',
+                                            borderRadius: '12px',
+                                            outline: 'none',
+                                            transition: 'all 0.3s',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontWeight: '600',
+                                        color: '#333',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '1.1rem'
+                                    }}>
+                                        🔀 Distractor Pattern
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={distractorPattern}
+                                        onChange={(e) => setDistractorPattern(e.target.value)}
+                                        placeholder="e.g., Short vowel sound"
+                                        style={{
+                                            width: '100%',
+                                            padding: '1rem',
+                                            fontSize: '1rem',
+                                            border: '3px solid #e1bee7',
+                                            borderRadius: '12px',
+                                            outline: 'none',
+                                            transition: 'all 0.3s',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '1rem' }}>
+                                    <div>
+                                        <label style={{
+                                            display: 'block',
+                                            fontWeight: '600',
+                                            color: '#ff9800',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '1.1rem'
+                                        }}>
+                                            Target Words (10) <span style={{ fontSize: '0.85rem', color: '#999' }}>- min. 5 required</span>
+                                        </label>
+                                        <div style={{
+                                            maxHeight: '400px',
+                                            overflowY: 'auto',
+                                            paddingRight: '0.5rem'
+                                        }}>
+                                            {targetWords.map((word, i) => (
+                                                <input
+                                                    key={i}
+                                                    type="text"
+                                                    value={word}
+                                                    onChange={(e) => updateTargetWord(i, e.target.value)}
+                                                    placeholder={`Word ${i + 1}`}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.75rem',
+                                                        fontSize: '1rem',
+                                                        border: '2px solid #ffe0b2',
+                                                        borderRadius: '8px',
+                                                        marginBottom: '0.5rem',
+                                                        outline: 'none',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label style={{
+                                            display: 'block',
+                                            fontWeight: '600',
+                                            color: '#9c27b0',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '1.1rem'
+                                        }}>
+                                            Distractor Words (10) <span style={{ fontSize: '0.85rem', color: '#999' }}>- min. 5 required</span>
+                                        </label>
+                                        <div style={{
+                                            maxHeight: '400px',
+                                            overflowY: 'auto',
+                                            paddingRight: '0.5rem'
+                                        }}>
+                                            {distractorWords.map((word, i) => (
+                                                <input
+                                                    key={i}
+                                                    type="text"
+                                                    value={word}
+                                                    onChange={(e) => updateDistractorWord(i, e.target.value)}
+                                                    placeholder={`Word ${i + 1}`}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.75rem',
+                                                        fontSize: '1rem',
+                                                        border: '2px solid #e1bee7',
+                                                        borderRadius: '8px',
+                                                        marginBottom: '0.5rem',
+                                                        outline: 'none',
+                                                        boxSizing: 'border-box'
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={startActivity}
+                                    disabled={!canStart}
+                                    style={{
+                                        width: '100%',
+                                        marginTop: '2rem',
+                                        padding: '1.25rem',
+                                        fontSize: '1.2rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        background: canStart ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#ccc',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        cursor: canStart ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.3s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <Shuffle size={24} />
+                                    Start Word Sort Activity
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {phase === 'activity' && shuffledCards.length > 0 && (
+                        <div style={{
+                            maxWidth: '1000px',
+                            margin: '0 auto',
+                            animation: 'fadeIn 0.6s ease-out'
+                        }}>
+                            <div style={{
+                                textAlign: 'center',
+                                marginBottom: '1.5rem',
+                                padding: '1rem 2rem',
+                                background: isModeling ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                                borderRadius: '16px',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                                animation: 'slideDown 0.5s ease-out'
+                            }}>
+                                <div style={{
+                                    fontSize: '1.5rem',
+                                    fontWeight: '700',
+                                    fontFamily: '"Fredoka", cursive',
+                                    color: 'white',
+                                    textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }}>
+                                    {isModeling ? '👨‍🏫 Teacher Modeling' : '👦 Student Turn'}
+                                </div>
+                                <div style={{
+                                    fontSize: '1rem',
+                                    color: 'rgba(255,255,255,0.9)',
+                                    marginTop: '0.25rem'
+                                }}>
+                                    {isModeling ? 'Watch and listen as I demonstrate' : 'Now you try!'}
+                                </div>
+                            </div>
+
+                            <div style={{
+                                textAlign: 'center',
+                                marginBottom: '2rem',
+                                color: '#fff',
+                                fontSize: '1.2rem',
+                                fontWeight: '600',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}>
+                                Card {currentIndex + 1} of {shuffledCards.length}
+                            </div>
+
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '2rem',
+                                marginBottom: '3rem'
+                            }}>
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #ffd89b 0%, #ff9a56 100%)',
+                                    padding: '2rem',
+                                    borderRadius: '20px',
+                                    textAlign: 'center',
+                                    boxShadow: '0 10px 30px rgba(255, 154, 86, 0.3)',
+                                    border: '4px solid white'
+                                }}>
+                                    <div style={{
+                                        fontSize: '0.9rem',
+                                        fontWeight: '600',
+                                        color: 'rgba(0,0,0,0.6)',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        TARGET PATTERN
+                                    </div>
+                                    <div style={{
+                                        fontSize: '1.5rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        color: '#fff',
+                                        textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }}>
+                                        {targetPattern}
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #c471ed 0%, #12c2e9 100%)',
+                                    padding: '2rem',
+                                    borderRadius: '20px',
+                                    textAlign: 'center',
+                                    boxShadow: '0 10px 30px rgba(196, 113, 237, 0.3)',
+                                    border: '4px solid white'
+                                }}>
+                                    <div style={{
+                                        fontSize: '0.9rem',
+                                        fontWeight: '600',
+                                        color: 'rgba(255,255,255,0.8)',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        DISTRACTOR PATTERN
+                                    </div>
+                                    <div style={{
+                                        fontSize: '1.5rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        color: '#fff',
+                                        textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }}>
+                                        {distractorPattern}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{
+                                background: 'white',
+                                padding: '4rem 2rem',
+                                borderRadius: '24px',
+                                textAlign: 'center',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                                marginBottom: '2rem',
+                                animation: 'slideUp 0.5s ease-out',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    fontSize: '4rem',
+                                    fontWeight: '700',
+                                    fontFamily: '"Fredoka", cursive',
+                                    color: '#333',
+                                    marginBottom: '1rem'
+                                }}>
+                                    {shuffledCards[currentIndex].word}
+                                </div>
+                                <div style={{
+                                    fontSize: '1.2rem',
+                                    color: '#999',
+                                    fontWeight: '500'
+                                }}>
+                                    Which pattern does this word follow?
+                                </div>
+                            </div>
+
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '2rem'
+                            }}>
+                                <button
+                                    onClick={() => handleSort('target')}
+                                    disabled={showFeedback}
+                                    style={{
+                                        padding: '2rem',
+                                        fontSize: '4rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        background: 'linear-gradient(135deg, #ffd89b 0%, #ff9a56 100%)',
+                                        color: 'white',
+                                        border: '4px solid white',
+                                        borderRadius: '20px',
+                                        cursor: showFeedback ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.3s',
+                                        boxShadow: '0 10px 30px rgba(255, 154, 86, 0.3)'
+                                    }}
+                                >
+                                    😊
+                                </button>
+
+                                <button
+                                    onClick={() => handleSort('distractor')}
+                                    disabled={showFeedback}
+                                    style={{
+                                        padding: '2rem',
+                                        fontSize: '4rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        background: 'linear-gradient(135deg, #c471ed 0%, #12c2e9 100%)',
+                                        color: 'white',
+                                        border: '4px solid white',
+                                        borderRadius: '20px',
+                                        cursor: showFeedback ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.3s',
+                                        boxShadow: '0 10px 30px rgba(196, 113, 237, 0.3)'
+                                    }}
+                                >
+                                    😞
+                                </button>
+                            </div>
+
+                            {showFeedback && (
+                                <div style={{
+                                    position: 'fixed',
+                                    top: '50%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    background: feedbackCorrect ? '#4caf50' : '#f44336',
+                                    color: 'white',
+                                    padding: '3rem 4rem',
+                                    borderRadius: '24px',
+                                    fontSize: '3rem',
+                                    fontWeight: '700',
+                                    fontFamily: '"Fredoka", cursive',
+                                    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                                    animation: 'popIn 0.3s ease-out',
+                                    zIndex: 1000,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '1rem'
+                                }}>
+                                    {feedbackCorrect ? <Check size={64} /> : <X size={64} />}
+                                    {feedbackCorrect ? 'Correct!' : 'Try Again!'}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {phase === 'reading' && shuffledCards[currentIndex] && (
+                        <div style={{
+                            maxWidth: '800px',
+                            margin: '0 auto',
+                            animation: 'fadeIn 0.6s ease-out'
+                        }}>
+                            <div style={{
+                                background: 'white',
+                                padding: '4rem',
+                                borderRadius: '24px',
+                                textAlign: 'center',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+                            }}>
+                                <div style={{
+                                    fontSize: '1.5rem',
+                                    color: '#666',
+                                    marginBottom: '2rem',
+                                    fontWeight: '500'
+                                }}>
+                                    Great! Now read this word aloud:
+                                </div>
+                                
+                                <div style={{
+                                    fontSize: '5rem',
+                                    fontWeight: '700',
+                                    fontFamily: '"Fredoka", cursive',
+                                    color: '#ff6b6b',
+                                    marginBottom: '3rem',
+                                    animation: 'pulse 1.5s infinite'
+                                }}>
+                                    {shuffledCards[currentIndex].word}
+                                </div>
+
+                                <button
+                                    onClick={moveToNext}
+                                    style={{
+                                        padding: '1.5rem 3rem',
+                                        fontSize: '1.3rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    Continue <ChevronRight />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {phase === 'summary' && (
+                        <div style={{
+                            maxWidth: '800px',
+                            margin: '0 auto',
+                            animation: 'fadeIn 0.6s ease-out'
+                        }}>
+                            <div style={{
+                                background: 'white',
+                                padding: '3rem',
+                                borderRadius: '24px',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+                            }}>
+                                <h2 style={{
+                                    fontFamily: '"Fredoka", cursive',
+                                    fontSize: '2.5rem',
+                                    color: '#4caf50',
+                                    marginBottom: '2rem',
+                                    textAlign: 'center'
+                                }}>
+                                    🎉 Activity Complete!
+                                </h2>
+
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                                    padding: '2rem',
+                                    borderRadius: '16px',
+                                    marginBottom: '2rem'
+                                }}>
+                                    <div style={{
+                                        fontSize: '1.2rem',
+                                        fontWeight: '600',
+                                        color: '#333',
+                                        marginBottom: '1rem'
+                                    }}>
+                                        Results:
+                                    </div>
+                                    <div style={{
+                                        fontSize: '3rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        color: '#ff6b6b'
+                                    }}>
+                                        {results.filter(r => r.correct).length} / {results.length} Correct
+                                    </div>
+                                    <div style={{
+                                        fontSize: '1.5rem',
+                                        fontWeight: '600',
+                                        color: '#666',
+                                        marginTop: '0.5rem'
+                                    }}>
+                                        {Math.round((results.filter(r => r.correct).length / results.length) * 100)}% Accuracy
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    maxHeight: '300px',
+                                    overflowY: 'auto',
+                                    marginBottom: '2rem'
+                                }}>
+                                    {results.map((result, i) => (
+                                        <div key={i} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '1rem',
+                                            marginBottom: '0.5rem',
+                                            background: result.correct ? '#e8f5e9' : '#ffebee',
+                                            borderRadius: '12px',
+                                            border: result.correct ? '2px solid #4caf50' : '2px solid #f44336'
+                                        }}>
+                                            <span style={{
+                                                fontSize: '1.2rem',
+                                                fontWeight: '600',
+                                                color: '#333'
+                                            }}>
+                                                {result.word}
+                                            </span>
+                                            <span style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                fontSize: '1rem',
+                                                fontWeight: '600',
+                                                color: result.correct ? '#4caf50' : '#f44336'
+                                            }}>
+                                                {result.correct ? <Check size={20} /> : <X size={20} />}
+                                                {result.correct ? 'Correct' : 'Incorrect'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <button
+                                    onClick={resetActivity}
+                                    style={{
+                                        width: '100%',
+                                        padding: '1.25rem',
+                                        fontSize: '1.2rem',
+                                        fontWeight: '700',
+                                        fontFamily: '"Fredoka", cursive',
+                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <RotateCcw size={24} />
+                                    Start New Activity
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <style>{`
+                        @keyframes fadeIn {
+                            from {
+                                opacity: 0;
+                                transform: translateY(20px);
+                            }
+                            to {
+                                opacity: 1;
+                                transform: translateY(0);
+                            }
+                        }
+
+                        @keyframes slideDown {
+                            from {
+                                opacity: 0;
+                                transform: translateY(-20px);
+                            }
+                            to {
+                                opacity: 1;
+                                transform: translateY(0);
+                            }
+                        }
+
+                        @keyframes slideUp {
+                            from {
+                                opacity: 0;
+                                transform: translateY(30px);
+                            }
+                            to {
+                                opacity: 1;
+                                transform: translateY(0);
+                            }
+                        }
+
+                        @keyframes popIn {
+                            0% {
+                                opacity: 0;
+                                transform: translate(-50%, -50%) scale(0.5);
+                            }
+                            100% {
+                                opacity: 1;
+                                transform: translate(-50%, -50%) scale(1);
+                            }
+                        }
+
+                        @keyframes pulse {
+                            0%, 100% {
+                                transform: scale(1);
+                            }
+                            50% {
+                                transform: scale(1.05);
+                            }
+                        }
+                    `}</style>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<WordSortActivity />);
+    </script>
+</body>
+</html>
